@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>solus.origami — 8×8 fold‑code renderer</title>
+<style>
+  :root{
+    --bg: #f8fafc;
+    --panel: #ffffff;
+    --ink: #0f172a;
+    --muted:#64748b;
+    --grid:#e2e8f0;
+    --grid-strong:#cbd5e1;
+    --accent:#111827;
+    --blue:#2563eb;
+    --red:#ef4444;
+    --ok:#16a34a;
+    --warn:#b91c1c;
+    --cell-size: 72px;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(15,23,42,.06), 0 8px 24px rgba(15,23,42,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";}
+  .wrap{max-width:1200px;margin:0 auto;padding:24px 20px 36px;}
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .logo{
+    width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#ffffff 0%,#eef2ff 60%);
+    border:1px solid var(--grid-strong);display:grid;place-items:center;box-shadow:var(--shadow);
+    color:#334155;font-weight:700;font-size:14px;letter-spacing:0.4px;
+  }
+  h1{font-size:18px;margin:0;font-weight:700;letter-spacing:0.2px}
+  .legend{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:12px}
+  .chip{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--grid);border-radius:999px;background:#fff}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .dot.blue{background:var(--blue)}
+  .dot.red{background:var(--red)}
+  .grid-2{display:grid;grid-template-columns: minmax(320px, 520px) 1fr; gap:16px;}
+  @media (max-width:980px){.grid-2{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--grid);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  .panel .head{padding:12px 14px;border-bottom:1px solid var(--grid);display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .panel .head h2{margin:0;font-size:13px;font-weight:700;color:#0b1220;letter-spacing:.2px}
+  .panel .body{padding:12px}
+  textarea{width:100%;min-height:280px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    font-size:13px;line-height:1.5;border:1px solid var(--grid);border-radius:10px;padding:10px 12px;background:#fff;color:var(--ink);
+    outline:none;transition:box-shadow .2s,border-color .2s;}
+  textarea:focus{border-color:var(--grid-strong);box-shadow:0 0 0 3px rgba(37,99,235,.08)}
+  .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .btn{border:1px solid var(--grid-strong);background:#fff;color:var(--accent);padding:8px 12px;border-radius:10px;font-size:13px;
+    font-weight:600;cursor:pointer;transition:background .15s,transform .02s;}
+  .btn:hover{background:#f8fafc}
+  .btn:active{transform:translateY(1px)}
+  .status{margin-left:auto;font-size:12px;color:var(--muted)}
+  .field{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);padding:6px 10px;border:1px solid var(--grid);
+    border-radius:999px;background:#fff}
+  .field input[type="number"]{width:72px;padding:4px 6px;border:1px solid var(--grid);border-radius:8px}
+  .field input[type="checkbox"]{width:16px;height:16px}
+  .hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.55}
+  .stage{padding:12px;border:1px dashed var(--grid);border-radius:12px;background:#fff}
+  .grid{display:grid;grid-template-columns:repeat(8,var(--cell-size));gap:0;width:100%;max-width:calc(8*var(--cell-size));margin:0 auto}
+  .cell{
+  width:var(--cell-size);
+  height:var(--cell-size);
+  position:relative;
+  background:#fff;
+  border-right:3px solid var(--grid);
+  border-bottom:3px solid var(--grid);
+}
+.cell.row0{border-top:3px solid var(--grid)}
+.cell.col0{border-left:3px solid var(--grid)}
+  .cell.error{background:#fff5f5}
+  .cell svg{
+    width:100%;
+    height:100%;
+    display:block;
+    position:absolute;
+    top:0;
+    left:0;
+    z-index:100;
+    pointer-events:none;
+    overflow:visible;
+  }
+  .label{position:absolute;bottom:4px;right:6px;padding:2px 6px;border-radius:7px;background:rgba(255,255,255,.9);
+    border:1px solid rgba(0,0,0,.06);font-size:10px;color:var(--muted);max-width:95%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:200}
+  .ghost{opacity:.4}
+  .help{font-size:12px;color:var(--muted);line-height:1.6;background:#fff;border:1px solid var(--grid);border-radius:10px;padding:10px 12px;margin-top:10px}
+  .help code{background:#f1f5f9;border:1px solid #e2e8f0;color:#0b1220;padding:2px 6px;border-radius:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo">SO</div>
+      <div>
+        <h1>solus.origami</h1>
+        <div class="legend">
+          <span class="chip"><span class="dot blue"></span> Mountain (Blue)</span>
+          <span class="chip"><span class="dot red"></span> Valley (Red)</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="grid-2">
+    <section class="panel">
+      <div class="head">
+        <h2>Pattern input</h2>
+        <div class="status" id="status">Ready</div>
+      </div>
+      <div class="body">
+        <textarea id="pattern" spellcheck="false"></textarea>
+        <div class="controls">
+          <button class="btn" id="render">Render</button>
+          <button class="btn" id="reset">Reset sample</button>
+          <label class="field">Cell size <input id="cellSize" type="number" min="32" max="160" step="4" value="72"> px</label>
+          <label class="field"><input id="showLabels" type="checkbox" checked> Show codes</label>
+          <label class="field"><input id="showGrid" type="checkbox" checked> Show gridlines</label>
+          <label class="field"><input id="ghostEmpty" type="checkbox"> Dim empty cells</label>
+        </div>
+        <div class="help">
+          Format: Either 8 lines × 8 cells <em>or</em> one line with 64 cells, space‑separated.<br>
+          Codes: <code>D[color]</code>, <code>D2[color]</code>, <code>MH[color]</code>, <code>MV[color]</code>, <code>T[color]</code>, <code>L[color]</code>, <code>R[color]</code>, <code>B[color]</code>, <code>C[empty]</code>.<br>
+          Multi‑codes per cell: concatenate without spaces, e.g. <code>MH[Blue]D[Red]T[Blue]</code>. Use <code>C[empty]</code> for an empty cell.<br>
+          Colors: <code>Blue</code> = mountain, <code>Red</code> = valley (case‑insensitive).
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="head">
+        <h2>Rendered grid</h2>
+      </div>
+      <div class="body">
+        <div class="stage">
+          <div id="grid" class="grid" aria-label="8×8 grid"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  const textarea = document.getElementById('pattern');
+  const gridEl   = document.getElementById('grid');
+  const renderBtn= document.getElementById('render');
+  const resetBtn = document.getElementById('reset');
+  const statusEl = document.getElementById('status');
+  const cellSizeInput = document.getElementById('cellSize');
+  const showLabels = document.getElementById('showLabels');
+  const showGrid   = document.getElementById('showGrid');
+  const ghostEmpty = document.getElementById('ghostEmpty');
+
+  const COLORS = {
+    BLUE: css('--blue'),
+    RED:  css('--red')
+  };
+
+  const sample = [
+    "T[Blue] MH[Blue] T[Blue] MH[Blue] T[Blue] MH[Blue] T[Blue] MH[Blue]",
+    "MV[Blue] D[Red] MV[Blue] D2[Red] MV[Blue] D[Red] MV[Blue] D2[Red]",
+    "T[Blue] MH[Blue] T[Blue] MH[Blue] T[Blue] MH[Blue] T[Blue] MH[Blue]",
+    "MV[Blue] D2[Red] MV[Blue] D[Red] MV[Blue] D2[Red] MV[Blue] D[Red]",
+    "T[Blue] MH[Blue] T[Blue] MH[Blue] T[Blue] MH[Blue] T[Blue] MH[Blue]",
+    "MV[Blue] D[Red] MV[Blue] D2[Red] MV[Blue] D[Red] MV[Blue] D2[Red]",
+    "T[Blue] MH[Blue] T[Blue] MH[Blue] T[Blue] MH[Blue] T[Blue] MH[Blue]",
+    "B[Blue] MH[Blue] B[Blue] MH[Blue] B[Blue] MH[Blue] B[Blue] MH[Blue]"
+  ].join(" ");
+
+  textarea.value = sample;
+
+  function css(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function setSize(px){ document.documentElement.style.setProperty('--cell-size', (px||72)+'px'); }
+
+  function parsePattern(text){
+  // Strip any "RowX:" labels at the start of tokens
+  const cleaned = text.replace(/row\s*\d+\s*:/gi, ' ').trim();
+
+
+  // Split into individual cell codes by whitespace
+  const tokens = cleaned.split(/\s+/).filter(Boolean);
+
+  if(tokens.length !== 64){
+    throw new Error(`Need exactly 64 cells, got ${tokens.length}.`);
+  }
+
+  const grid = [];
+  for(let r=0; r<8; r++){
+    grid[r] = [];
+    for(let c=0; c<8; c++){
+      grid[r][c] = parseCell(tokens[r*8 + c]);
+    }
+  }
+  return grid;
+}
+
+  function parseCell(cellStr) {
+   const ops = [];
+   const re = /([a-z0-9]+)\[(.*?)\]\s*/ig;
+
+    let m, consumed = 0;
+    while((m = re.exec(cellStr)) !== null){
+      consumed = re.lastIndex;
+      const type = m[1].toUpperCase();
+      const val  = (m[2]||'').trim();
+      ops.push(normOp(type, val, cellStr));
+    }
+    if(ops.length === 0 || consumed !== cellStr.length){
+      return { raw: cellStr, ops: [], err: 'Unrecognized token(s)' };
+    }
+    const filtered = ops.filter(o => o.type !== 'C');
+    const finalOps = filtered.length === 0 ? [] : filtered;
+    const hasErr = ops.some(o => o.err);
+    return { raw: cellStr, ops: finalOps, err: hasErr ? 'Invalid code' : null };
+  }
+
+  function normOp(type, val, raw){
+    const valid = ['D','D2','MH','MV','T','L','R','B','C'];
+    if(!valid.includes(type)) return { type, color:null, err:'Unknown type', raw };
+    if(type === 'C'){
+      if(val.toUpperCase() !== 'EMPTY') return { type, color:null, err:'C[...] must be empty', raw };
+      return { type, color:null };
+    }
+    const col = val.toUpperCase();
+    if(col !== 'BLUE' && col !== 'RED') return { type, color:null, err:'Unknown color', raw };
+    return { type, color:col };
+  }
+
+  function render(grid, opts){
+    gridEl.innerHTML = '';
+    for(let r=0; r<8; r++){
+      for(let c=0; c<8; c++){
+        const cell = document.createElement('div');
+        cell.className = `cell row${r} col${c}`;
+        if(!opts.gridlines) cell.style.borderColor = 'transparent';
+        const spec = grid[r][c];
+        const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+        svg.setAttribute('viewBox','0 0 100 100');
+        if(spec.err) cell.classList.add('error');
+        if(opts.ghostEmpty && spec.ops.length === 0) svg.classList.add('ghost');
+        spec.ops.forEach(op => { if(!op.err) draw(svg, op); });
+        if(opts.labels){
+          const lab = document.createElement('div');
+          lab.className = 'label';
+          lab.textContent = spec.raw || 'C[empty]';
+          cell.appendChild(lab);
+        }
+        cell.appendChild(svg);
+        gridEl.appendChild(cell);
+      }
+    }
+  }
+
+
+function draw(svg, op){
+  const color = op.color ? (op.color === 'BLUE' ? COLORS.BLUE : COLORS.RED) : '#000';
+  const weight = 4;
+  const line = (x1,y1,x2,y2)=>{
+    const el = document.createElementNS('http://www.w3.org/2000/svg','line');
+    el.setAttribute('x1', x1); el.setAttribute('y1', y1);
+    el.setAttribute('x2', x2); el.setAttribute('y2', y2);
+    el.setAttribute('stroke', color);
+    el.setAttribute('stroke-width', weight);
+    el.setAttribute('stroke-linecap', 'round');
+    svg.appendChild(el);
+  };
+
+  // Lines go exactly to the border edges (accounting for 3px border)
+  // In a 100x100 viewBox, we extend 1.7 units to hit the middle of 3px borders
+  switch(op.type){
+    case 'MH': line(-1.7,50,101.7,50); break;    // Horizontal middle
+    case 'MV': line(50,-1.7,50,101.7); break;    // Vertical middle
+    case 'D':  line(-1.7,-1.7,101.7,101.7); break; // Diagonal \
+    case 'D2': line(101.7,-1.7,-1.7,101.7); break; // Diagonal /
+    case 'T':  line(-1.7,-1.7,101.7,-1.7); break;  // Top edge
+    case 'B':  line(-1.7,101.7,101.7,101.7); break; // Bottom edge
+    case 'L':  line(-1.7,-1.7,-1.7,101.7); break;  // Left edge
+    case 'R':  line(101.7,-1.7,101.7,101.7); break; // Right edge
+  }
+} 
+
+function tryRender(){    
+try{
+      const grid = parsePattern(textarea.value);
+      render(grid, {
+        labels: showLabels.checked,
+        gridlines: showGrid.checked,
+        ghostEmpty: ghostEmpty.checked
+      });
+      ok("Rendered ✓");
+    }catch(err){
+      gridEl.innerHTML = '';
+      warn("Error: " + err.message);
+    }
+  }
+
+  function ok(msg){ statusEl.textContent = msg; statusEl.style.color = getColor('--ok'); }
+  function warn(msg){ statusEl.textContent = msg; statusEl.style.color = getColor('--warn'); }
+    function getColor(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  renderBtn.addEventListener('click', tryRender);
+  resetBtn.addEventListener('click', ()=>{ textarea.value = sample; tryRender(); });
+  textarea.addEventListener('input', debounce(tryRender, 120));
+  cellSizeInput.addEventListener('input', (e)=>{
+    const v = Math.max(32, Math.min(160, parseInt(e.target.value||72,10)));
+    setSize(v); tryRender();
+  });
+  showLabels.addEventListener('change', tryRender);
+  showGrid.addEventListener('change', tryRender);
+  ghostEmpty.addEventListener('change', tryRender);
+
+  // Init
+  setSize(parseInt(cellSizeInput.value,10) || 72);
+  tryRender();
+
+  function debounce(fn, wait){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
+})();
+</script>
+</body>
+</html>
